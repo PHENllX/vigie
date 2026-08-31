@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Vigie — configuration</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e2229; --border: #2a2f3a;
+    --text: #e8eaed; --muted: #8a90a0; --accent: #4da3ff; --ok: #4dd58a; --bad: #ff5d5d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px; padding: 28px 32px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin-bottom: 24px; font-size: 13px; }
+  .step { display: none; }
+  .step.active { display: block; }
+  .choice {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 12px; cursor: pointer; transition: border-color .12s;
+  }
+  .choice:hover { border-color: #3d4453; }
+  .choice.sel { border-color: var(--accent); background: var(--panel2); }
+  .choice h3 { margin: 0 0 6px; font-size: 15px; }
+  .choice p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  label { display: block; margin: 14px 0 6px; font-size: 13px; color: var(--muted); }
+  input[type=text], input[type=password] {
+    width: 100%; padding: 10px 12px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+  .hint a { color: var(--accent); }
+  .row { display: flex; gap: 12px; }
+  .row > * { flex: 1; }
+  .actions { margin-top: 26px; display: flex; gap: 10px; justify-content: space-between; align-items: center; }
+  button {
+    padding: 10px 20px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text); font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { font-size: 13px; padding: 10px 12px; border-radius: 8px; margin-top: 14px; display: none; }
+  .status.show { display: block; }
+  .status.ok { background: rgba(77,213,138,.1); color: var(--ok); }
+  .status.bad { background: rgba(255,93,93,.1); color: var(--bad); }
+  .status.info { background: var(--panel2); color: var(--muted); }
+  .check { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; }
+  .check input { width: auto; }
+  .banner {
+    background: rgba(77,163,255,.08); border: 1px solid rgba(77,163,255,.25);
+    border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #cfe3fb;
+    line-height: 1.55; margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ÉTAPE 1 : rôle du PC -->
+<div class="step active" id="step1">
+  <h1>Vigie</h1>
+  <div class="sub">Configuration — quel est le rôle de ce PC ?</div>
+
+  <div class="banner">
+    <strong>Important :</strong> un seul de vos deux PC doit être l'hôte. Les caméras Wyze
+    n'acceptent qu'un nombre limité de connexions simultanées — installer l'hôte deux fois
+    rendrait les flux instables. L'autre PC se connecte simplement à l'hôte.
+  </div>
+
+  <div class="choice" data-mode="host">
+    <h3>PC hôte</h3>
+    <p>Ce PC se connecte aux caméras, gère les enregistrements et partage le dashboard
+       sur le réseau. Choisis le PC qui reste allumé le plus souvent. Docker Desktop
+       est requis sur ce PC.</p>
+  </div>
+
+  <div class="choice" data-mode="client">
+    <h3>PC secondaire</h3>
+    <p>Ce PC se connecte au dashboard de l'hôte pour voir les caméras et recevoir les
+       alertes de mouvement. Aucune installation supplémentaire requise.</p>
+  </div>
+
+  <div class="actions">
+    <span></span>
+    <button class="primary" id="next1" disabled>Continuer</button>
+  </div>
+</div>
+
+<!-- ÉTAPE 2A : configuration hôte -->
+<div class="step" id="step2host">
+  <h1>Configuration de l'hôte</h1>
+  <div class="sub">Ces informations restent sur ce PC, dans ton dossier personnel.</div>
+
+  <div class="status info show" id="dockerStatus">Vérification de Docker…</div>
+
+  <label>Courriel du compte Wyze</label>
+  <input type="text" id="wyzeEmail" placeholder="ton-email@exemple.com" autocomplete="off" />
+
+  <label>Mot de passe Wyze</label>
+  <input type="password" id="wyzePassword" autocomplete="off" />
+
+  <div class="row">
+    <div>
+      <label>Key Id (API_ID)</label>
+      <input type="text" id="apiId" placeholder="bfdada08-…" autocomplete="off" />
+    </div>
+    <div>
+      <label>Api Key (API_KEY)</label>
+      <input type="password" id="apiKey" autocomplete="off" />
+    </div>
+  </div>
+  <div class="hint">
+    Gratuit, 2 minutes : <a href="#" id="portalLink">developer-api-console.wyze.com</a> →
+    « Create API Key ». Utilise le même courriel que ton compte Wyze.
+  </div>
+
+  <label>Noms de tes caméras</label>
+  <input type="text" id="cameras" placeholder="entree, salon, cour-arriere, garage" />
+  <div class="hint">
+    Séparés par des virgules, en minuscules, tirets à la place des espaces — tels que
+    nommés dans l'app Wyze. Si tu n'es pas certain, laisse vide : tu pourras corriger
+    après le premier démarrage.
+  </div>
+
+  <label>Adresse IP de ce PC sur le réseau local</label>
+  <input type="text" id="hostIp" />
+  <div class="hint">Détectée automatiquement. C'est l'adresse que ta conjointe devra entrer sur l'autre PC.</div>
+
+  <div class="check">
+    <input type="checkbox" id="record" checked />
+    <label for="record" style="margin:0;color:var(--text)">Enregistrer les clips vidéo (conservés 7 jours)</label>
+  </div>
+  <div class="check">
+    <input type="checkbox" id="notifHost" checked />
+    <label for="notifHost" style="margin:0;color:var(--text)">Notifications Windows lors d'un mouvement</label>
+  </div>
+
+  <div class="check">
+    <input type="checkbox" id="remoteEnabled" />
+    <label for="remoteEnabled" style="margin:0;color:var(--text)">Accès à distance par mon relais</label>
+  </div>
+
+  <div id="remoteBox" style="display:none;padding-left:24px;border-left:2px solid var(--border);margin:4px 0 6px">
+    <label>Adresse du relais</label>
+    <input type="text" id="relayUrl" placeholder="https://vigie.nstudio.ca" />
+
+    <label>Jeton du tunnel</label>
+    <div class="row" style="gap:8px">
+      <input type="text" id="relayToken" style="font-family:monospace;font-size:12px"
+             placeholder="au moins 16 caractères" />
+      <button type="button" id="copyToken" style="flex:0 0 auto">Copier</button>
+      <button type="button" id="newToken" style="flex:0 0 auto">Nouveau</button>
+    </div>
+    <div class="hint">
+      Doit être identique à la variable <strong>TUNNEL_TOKEN</strong> de ton instance.
+      Un jeton est proposé ici — copie-le dans le panel, ou colle celui que tu y as
+      déjà mis. Choisis aussi un <strong>VIGIE_PASSWORD</strong> dans le panel : c'est
+      le mot de passe que vous entrerez dans le navigateur.
+    </div>
+  </div>
+
+  <div class="status" id="hostStatus"></div>
+
+  <div class="actions">
+    <button id="back2h">Retour</button>
+    <button class="primary" id="finishHost">Démarrer</button>
+  </div>
+</div>
+
+<!-- ÉTAPE 2B : configuration client -->
+<div class="step" id="step2client">
+  <h1>Connexion à l'hôte</h1>
+  <div class="sub">Entre l'adresse IP du PC hôte, affichée lors de sa configuration.</div>
+
+  <label>Adresse IP du PC hôte</label>
+  <input type="text" id="clientHostIp" placeholder="192.168.1.50" />
+  <div class="hint">
+    Le PC hôte doit être allumé et l'application ouverte (ou réduite dans la barre système)
+    pour que la connexion fonctionne.
+  </div>
+
+  <div class="check">
+    <input type="checkbox" id="notifClient" checked />
+    <label for="notifClient" style="margin:0;color:var(--text)">Notifications Windows lors d'un mouvement</label>
+  </div>
+
+  <div class="status" id="clientStatus"></div>
+
+  <div class="actions">
+    <button id="back2c">Retour</button>
+    <button class="primary" id="finishClient">Tester et se connecter</button>
+  </div>
+</div>
+
+<script>
+let mode = null;
+
+function show(id) {
+  document.querySelectorAll(".step").forEach((s) => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+function setStatus(el, text, kind) {
+  el.textContent = text;
+  el.className = "status show " + kind;
+}
+
+// Étape 1
+document.querySelectorAll(".choice").forEach((c) => {
+  c.addEventListener("click", () => {
+    document.querySelectorAll(".choice").forEach((x) => x.classList.remove("sel"));
+    c.classList.add("sel");
+    mode = c.dataset.mode;
+    document.getElementById("next1").disabled = false;
+  });
+});
+
+document.getElementById("next1").addEventListener("click", async () => {
+  if (mode === "host") {
+    show("step2host");
+    const ip = await window.setupAPI.localIp();
+    document.getElementById("hostIp").value = ip;
+    document.getElementById("relayToken").value = await window.setupAPI.genToken();
+    const d = await window.setupAPI.checkDocker();
+    const el = document.getElementById("dockerStatus");
+    if (!d.installed) {
+      setStatus(el, "Docker Desktop n'est pas installé sur ce PC. Installe-le depuis docker.com, redémarre, puis relance cette application.", "bad");
+    } else if (!d.running) {
+      setStatus(el, "Docker Desktop est installé mais n'est pas démarré. Lance Docker Desktop, attends qu'il affiche « Engine running », puis clique Démarrer.", "bad");
+    } else {
+      setStatus(el, "Docker Desktop est prêt.", "ok");
+    }
+  } else {
+    show("step2client");
+  }
+});
+
+document.getElementById("back2h").addEventListener("click", () => show("step1"));
+document.getElementById("back2c").addEventListener("click", () => show("step1"));
+
+document.getElementById("remoteEnabled").addEventListener("change", (e) => {
+  document.getElementById("remoteBox").style.display = e.target.checked ? "block" : "none";
+});
+
+document.getElementById("copyToken").addEventListener("click", async (e) => {
+  await window.setupAPI.copy(document.getElementById("relayToken").value);
+  e.target.textContent = "Copié";
+  setTimeout(() => (e.target.textContent = "Copier"), 1500);
+});
+
+document.getElementById("newToken").addEventListener("click", async () => {
+  document.getElementById("relayToken").value = await window.setupAPI.genToken();
+});
+
+document.getElementById("portalLink").addEventListener("click", (e) => {
+  e.preventDefault();
+  window.open("https://developer-api-console.wyze.com/#/apikey/view");
+});
+
+// Finaliser — hôte
+document.getElementById("finishHost").addEventListener("click", async () => {
+  const btn = document.getElementById("finishHost");
+  const el = document.getElementById("hostStatus");
+  const cfg = {
+    mode: "host",
+    wyzeEmail: document.getElementById("wyzeEmail").value.trim(),
+    wyzePassword: document.getElementById("wyzePassword").value,
+    apiId: document.getElementById("apiId").value.trim(),
+    apiKey: document.getElementById("apiKey").value.trim(),
+    hostIp: document.getElementById("hostIp").value.trim(),
+    cameras: document.getElementById("cameras").value.split(",").map((s) => s.trim()).filter(Boolean),
+    record: document.getElementById("record").checked,
+    recordKeep: "168h",
+    notifications: document.getElementById("notifHost").checked,
+    remote: {
+      enabled: document.getElementById("remoteEnabled").checked,
+      relayUrl: document.getElementById("relayUrl").value.trim().replace(/\/+$/, ""),
+      token: document.getElementById("relayToken").value,
+    },
+  };
+
+  if (!cfg.wyzeEmail || !cfg.wyzePassword || !cfg.apiId || !cfg.apiKey) {
+    setStatus(el, "Remplis le courriel, le mot de passe, le Key Id et l'Api Key.", "bad");
+    return;
+  }
+  if (cfg.remote.enabled && !/^https?:\/\/.+/.test(cfg.remote.relayUrl)) {
+    setStatus(el, "Entre l'adresse complète du relais, avec https:// au début.", "bad");
+    return;
+  }
+  if (cfg.remote.enabled && cfg.remote.token.length < 16) {
+    setStatus(el, "Le jeton du tunnel doit faire au moins 16 caractères — il doit correspondre à TUNNEL_TOKEN dans le panel.", "bad");
+    return;
+  }
+
+  btn.disabled = true;
+  setStatus(el, "Démarrage du pont vidéo… le premier lancement télécharge environ 500 Mo, ça peut prendre quelques minutes.", "info");
+  await window.setupAPI.save(cfg);
+});
+
+// Finaliser — client
+document.getElementById("finishClient").addEventListener("click", async () => {
+  const btn = document.getElementById("finishClient");
+  const el = document.getElementById("clientStatus");
+  const ip = document.getElementById("clientHostIp").value.trim();
+  if (!ip) {
+    setStatus(el, "Entre l'adresse IP du PC hôte.", "bad");
+    return;
+  }
+  btn.disabled = true;
+  setStatus(el, "Test de la connexion…", "info");
+  const res = await window.setupAPI.testHost(ip);
+  if (!res.ok) {
+    setStatus(el, "Connexion impossible : " + res.error, "bad");
+    btn.disabled = false;
+    return;
+  }
+  setStatus(el, "Connecté ! " + (res.config.cameras || []).length + " caméra(s) détectée(s).", "ok");
+  await window.setupAPI.save({
+    mode: "client",
+    hostIp: ip,
+    notifications: document.getElementById("notifClient").checked,
+  });
+});
+</script>
+</body>
+</html>

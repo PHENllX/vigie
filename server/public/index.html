@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vigie</title>
+<script src="/hls.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e2229; --border: #2a2f3a;
+    --text: #e8eaed; --muted: #8a90a0; --accent: #4da3ff; --ok: #4dd58a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    padding: 14px 22px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    -webkit-app-region: drag;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header .right { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--muted); }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .dot.live { background: var(--ok); }
+  main {
+    display: grid; grid-template-columns: 1fr 300px; gap: 16px;
+    padding: 16px 22px; align-items: start;
+  }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+  .tile {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; position: relative;
+  }
+  .tile.alert { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .tile video { width: 100%; aspect-ratio: 16/9; background: #000; display: block; }
+  .tile .label {
+    padding: 8px 11px; font-size: 13px; color: var(--muted);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .tile .label .name { color: var(--text); font-weight: 500; }
+  .tile .badge {
+    position: absolute; top: 8px; left: 8px; background: rgba(77,163,255,.9);
+    color: #06121f; font-size: 11px; font-weight: 700; padding: 3px 8px;
+    border-radius: 5px; opacity: 0; transition: opacity .2s;
+  }
+  .tile.alert .badge { opacity: 1; }
+  aside { display: flex; flex-direction: column; gap: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .panel h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); margin: 0 0 10px;
+  }
+  .event, .rec { padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .event:last-child, .rec:last-child { border-bottom: none; }
+  .event .cam, .rec .cam { color: var(--accent); font-weight: 500; }
+  .event .time, .rec .time { color: var(--muted); float: right; font-variant-numeric: tabular-nums; }
+  .rec a { color: var(--text); text-decoration: none; }
+  .rec a:hover { text-decoration: underline; }
+  .empty { color: var(--muted); font-size: 13px; padding: 5px 0; }
+  .toast {
+    position: fixed; top: 14px; right: 22px; background: var(--panel2);
+    border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; animation: fade 4s ease forwards; z-index: 50;
+  }
+  @keyframes fade {
+    0% { opacity: 0; transform: translateY(-6px); }
+    10%, 85% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vigie</h1>
+  <div class="right">
+    <span id="hostInfo"></span>
+    <span id="wsStatus"><span class="dot"></span>Connexion…</span>
+  </div>
+</header>
+<main>
+  <section class="grid" id="grid"></section>
+  <aside>
+    <div class="panel">
+      <h2>Mouvement récent</h2>
+      <div id="events"><div class="empty">Aucun évènement pour l'instant</div></div>
+    </div>
+    <div class="panel">
+      <h2>Enregistrements</h2>
+      <div id="recordings"><div class="empty">Chargement…</div></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const grid = document.getElementById("grid");
+const eventsEl = document.getElementById("events");
+const recEl = document.getElementById("recordings");
+const wsStatus = document.getElementById("wsStatus");
+const hostInfo = document.getElementById("hostInfo");
+
+const fmtTime = (iso) =>
+  new Date(iso).toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+function showToast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+async function init() {
+  const cfg = await fetch("/api/config").then((r) => r.json());
+  hostInfo.textContent = "Hôte : " + cfg.bridgeHost;
+
+  if (!cfg.cameras.length) {
+    grid.innerHTML =
+      '<div class="empty">Aucune caméra configurée. Ouvre <a href="http://' +
+      cfg.bridgeHost +
+      ':5000" style="color:var(--accent)" target="_blank">le panneau du pont</a> pour voir les noms détectés, puis reconfigure l\'application (icône dans la barre système → Reconfigurer).</div>';
+    return;
+  }
+
+  cfg.cameras.forEach((cam) => {
+    const tile = document.createElement("div");
+    tile.className = "tile";
+    tile.id = "tile-" + cam;
+    tile.innerHTML =
+      '<span class="badge">MOUVEMENT</span>' +
+      '<video muted autoplay playsinline></video>' +
+      '<div class="label"><span class="name">' + cam + "</span><span>en direct</span></div>";
+    grid.appendChild(tile);
+
+    const video = tile.querySelector("video");
+    // URL relative : fonctionne aussi bien en local qu'à travers le relais HTTPS.
+    const src = "/hls/" + encodeURIComponent(cam) + "/index.m3u8";
+
+    if (window.Hls && Hls.isSupported()) {
+      const hls = new Hls({ liveSyncDurationCount: 3, manifestLoadingMaxRetry: 10 });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR, (evt, data) => {
+        // Le flux met quelques secondes à apparaître au démarrage du pont.
+        if (data.fatal) setTimeout(() => hls.loadSource(src), 5000);
+      });
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;
+    }
+  });
+
+  loadEvents();
+  loadRecordings();
+  setInterval(loadRecordings, 30000);
+}
+
+async function loadEvents() {
+  renderEvents(await fetch("/api/events").then((r) => r.json()));
+}
+
+function renderEvents(events) {
+  if (!events.length) {
+    eventsEl.innerHTML = '<div class="empty">Aucun évènement pour l\'instant</div>';
+    return;
+  }
+  eventsEl.innerHTML = events
+    .slice(0, 20)
+    .map(
+      (e) =>
+        '<div class="event"><span class="time">' + fmtTime(e.at) + '</span><span class="cam">' +
+        e.cam + "</span> — mouvement</div>"
+    )
+    .join("");
+}
+
+async function loadRecordings() {
+  const recs = await fetch("/api/recordings").then((r) => r.json());
+  if (!recs.length) {
+    recEl.innerHTML = '<div class="empty">Aucun enregistrement pour l\'instant</div>';
+    return;
+  }
+  recEl.innerHTML = recs
+    .slice(0, 15)
+    .map(
+      (r) =>
+        '<div class="rec"><span class="time">' + fmtTime(new Date(r.mtime).toISOString()) +
+        '</span><a href="' + r.url + '" target="_blank"><span class="cam">' + r.cam +
+        "</span></a></div>"
+    )
+    .join("");
+}
+
+function flashTile(cam) {
+  const tile = document.getElementById("tile-" + cam);
+  if (!tile) return;
+  tile.classList.add("alert");
+  setTimeout(() => tile.classList.remove("alert"), 8000);
+}
+
+function connectWs() {
+  const ws = new WebSocket((location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/ws");
+  ws.onopen = () => (wsStatus.innerHTML = '<span class="dot live"></span>En direct');
+  ws.onclose = () => {
+    wsStatus.innerHTML = '<span class="dot"></span>Déconnecté — reconnexion…';
+    setTimeout(connectWs, 3000);
+  };
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+    if (data.type !== "motion") return;
+    showToast("Mouvement détecté — " + data.cam);
+    flashTile(data.cam);
+    loadEvents();
+    // Notification Windows native (ignorée hors de l'application de bureau)
+    if (window.wyzeDesktop) window.wyzeDesktop.notifyMotion(data.cam);
+  };
+}
+
+init();
+connectWs();
+</script>
+</body>
+</html>
